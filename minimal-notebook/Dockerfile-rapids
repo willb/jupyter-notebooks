@@ -1,0 +1,29 @@
+FROM centos/python-36-centos7:latest
+
+USER root
+
+COPY . /tmp/src
+
+RUN rm -rf /tmp/src/.git* && \
+    chown -R 1001 /tmp/src && \
+    chgrp -R 0 /tmp/src && \
+    chmod -R g+w /tmp/src && \
+    rm -rf /tmp/scripts && \
+    mv /tmp/src/.s2i/bin /tmp/scripts
+
+USER 1001
+
+LABEL io.k8s.description="S2I builder for custom Jupyter notebooks." \
+      io.k8s.display-name="Jupyter Notebook" \
+      io.openshift.expose-services="8080:http" \
+      io.openshift.tags="builder,jupyter" \
+      io.openshift.s2i.scripts-url="image:///opt/app-root/builder"
+
+RUN wget -qO- https://micromamba.snakepit.net/api/micromamba/linux-64/latest | tar -xvj bin/micromamba --strip-components=1
+RUN ./micromamba create create -n rapids-0.18 -c rapidsai -c nvidia -c conda-forge \
+    -c defaults rapids-blazing=0.18 python=3.7 cudatoolkit=11.0
+
+RUN ./micromamba activate 
+RUN /tmp/scripts/assemble
+
+CMD [ "/opt/app-root/builder/run" ]
